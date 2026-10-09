@@ -1,0 +1,6 @@
+[
+  {"title":"Open admin panel","asset":"Customer Portal (demo)","severity":"High","cve":"","cvss":"","port":"8080/tcp","description":"Synthetic example","recommendation":"Restrict access by IP"},
+  {"title":"Weak cipher suite enabled","asset":"Payments API (demo)","severity":"Medium","cve":"","cvss":5.9,"port":"443/tcp","recommendation":"Disable legacy ciphers"},
+  {"title":"Unknown host issue","asset":"Nonexistent Asset","severity":"Low"},
+  {"title":"Bad severity example","asset":"Payments API (demo)","severity":"Urgent"}
+]

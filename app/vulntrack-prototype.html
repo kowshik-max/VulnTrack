@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>VulnTrack</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#f3f6fa;--card:#fff;--ink:#14213a;--mut:#5b6b85;--line:#dde4ee;--side:#0f1b2d;--acc:#2563eb;--crit:#b91c1c;--high:#c2410c;--med:#a16207;--low:#1d6fa5;--info:#64748b;--ok:#15803d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1220;--card:#131d30;--ink:#e6ecf5;--mut:#9aa9bf;--line:#243049}}
+:root[data-theme="dark"]{--bg:#0b1220;--card:#131d30;--ink:#e6ecf5;--mut:#9aa9bf;--line:#243049}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Arial,sans-serif;display:flex;min-height:100vh}
+aside{width:224px;background:var(--side);color:#cbd5e4;padding:20px 12px;position:sticky;top:0;height:100vh;flex-shrink:0}
+aside h1{font-size:20px;color:#fff;margin:0 8px 20px}aside h1 span{color:#60a5fa}
+aside button{display:flex;justify-content:space-between;width:100%;background:none;border:0;color:inherit;text-align:left;padding:10px 12px;border-radius:8px;font:inherit;cursor:pointer;margin-bottom:2px}
+aside button:hover{background:#1a2a44}aside button.on{background:var(--acc);color:#fff}
+aside small{display:block;margin:20px 8px 0;color:#7d8da6;font-size:12px}
+main{flex:1;padding:28px;min-width:0;max-width:1300px}
+h2{margin:0 0 4px;font-size:26px}.sub{color:var(--mut);margin:0 0 20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+.kpi b{display:block;font-size:32px}.kpi span{color:var(--mut)}
+.bar{display:flex;align-items:center;gap:10px;margin:7px 0}.bar i{display:block;height:14px;border-radius:7px;background:var(--acc);min-width:3px}
+.bar em{width:120px;font-style:normal;font-size:13px;color:var(--mut)}.bar b{font-size:13px}
+.wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:12px;text-transform:uppercase;color:var(--mut);cursor:pointer}
+tr.row:hover{background:rgba(37,99,235,.07);cursor:pointer}
+.b{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap}
+.Critical{background:var(--crit)}.High{background:var(--high)}.Medium{background:var(--med)}.Low{background:var(--low)}.Informational{background:var(--info)}
+.s{background:#e0e7f3;color:#1e3a8a}.P1{background:var(--crit)}.P2{background:var(--high)}.P3{background:var(--med)}.P4{background:var(--info)}
+.New{background:var(--ok)}.Duplicate{background:var(--med)}.Invalid{background:var(--crit)}
+input,select,textarea,button.p,button.g{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+textarea{width:100%;min-height:130px;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+button.p{background:var(--acc);color:#fff;border-color:var(--acc);cursor:pointer}button.g{cursor:pointer}button.d{background:var(--crit);color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+.row2{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;align-items:center}
+.modal{position:fixed;inset:0;background:rgba(5,10,20,.6);display:flex;justify-content:flex-end;z-index:9}
+.panel{background:var(--bg);width:min(680px,100%);height:100%;overflow:auto;padding:24px}
+.empty{padding:30px;text-align:center;color:var(--mut)}.warn{color:var(--high);font-size:13px}
+.hist li{margin-bottom:6px;font-size:14px}ul{padding-left:18px}
+@media(max-width:760px){body{flex-direction:column}aside{width:100%;height:auto;position:static;display:flex;flex-wrap:wrap;gap:4px}aside h1,aside small{width:100%}aside button{width:auto}main{padding:16px}}
+</style></head><body>
+<aside><h1>Vuln<span>Track</span></h1><div id="nav"></div><small>Demo data is synthetic. Data stays in this browser.</small></aside>
+<main id="v"></main><div id="m"></div>
+<script>
+const SEV=['Critical','High','Medium','Low','Informational'],ST=['Open','Triaged','In Progress','Fix Submitted','Pending Verification','Resolved','Accepted Risk','False Positive'];
+const SLA={Critical:7,High:30,Medium:60,Low:90,Informational:180},CR={Critical:20,High:15,Medium:8,Low:3},SW={Critical:40,High:30,Medium:20,Low:10,Informational:0};
+const NEXT={Open:['Triaged','In Progress'],Triaged:['In Progress'],'In Progress':['Fix Submitted'],'Fix Submitted':['Pending Verification']};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const D=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10),today=()=>D(0),age=d=>Math.floor((Date.now()-new Date(d))/864e5);
+let S,page='dash',sel=null,pv=null,flt={q:'',sev:'',st:'',sort:'p'};
+function seed(){const A=[['a1','Customer Portal (demo)','Web application','Production','Critical'],['a2','Payments API (demo)','Internal service','Production','High'],['a3','Staging Server (demo)','Server','Staging','Medium'],['a4','Dev Wiki (demo)','Web application','Development','Low']].map(([id,name,type,env,crit])=>({id,name,type,env,crit,owner:'IT Ops'}));
+const V=(i,t,a,sv,cv,cve,st,ow,fd,due,v)=>({id:'v'+i,title:t,asset:a,sev:sv,cvss:cv,cve,port:'443/tcp',status:st,owner:ow,found:D(-fd),due:D(due),confirmed:v,src:'Demo seed',rec:'Apply the vendor patch or the recommended configuration change.',ev:'Synthetic demonstration evidence.',hist:[{t:D(-fd),u:'system',x:'Imported from demo seed'}],ver:[]});
+S={assets:A,imports:[{t:D(-3),name:'demo-seed.json',n:8,dup:0,bad:0}],vulns:[V(1,'Outdated TLS configuration','a1','High',7.4,'','Open','Asha',20,10,true),V(2,'SQL injection in search (demo)','a1','Critical',9.8,'','In Progress','Ravi',12,-2,true),V(3,'Missing security headers','a1','Low',null,'','Triaged','Asha',40,50,false),V(4,'Weak admin password policy','a2','High',null,'','Pending Verification','Meera',25,5,true),V(5,'Exposed debug endpoint','a3','Medium',5.3,'','Resolved','Ravi',60,-20,true),V(6,'Directory listing enabled','a4','Low',3.1,'','Open','',8,80,false),V(7,'Legacy library with known flaws','a2','Critical',null,'','Open','',5,2,false),V(8,'Banner discloses version','a3','Informational',null,'','False Positive','Meera',30,100,false)]};
+S.vulns[4].ver=[{t:D(-18),by:'Meera',m:'Re-test',n:'Endpoint returns 404.',ok:true}];S.vulns[4].hist.push({t:D(-18),u:'Meera',x:'Verification passed: Resolved'});}
+try{S=JSON.parse(localStorage.getItem('vt2'))}catch(e){}if(!S)seed();
+const save=()=>{try{localStorage.setItem('vt2',JSON.stringify(S))}catch(e){}};
+const AS=id=>S.assets.find(a=>a.id==id)||{name:'Unknown asset',crit:'Unknown'};
+const due=v=>v.due||D(SLA[v.sev]-age(v.found));
+function prio(v){let p=SW[v.sev],r=[`Severity ${v.sev}: +${SW[v.sev]}`];const c=AS(v.asset).crit;
+if(CR[c]){p+=CR[c];r.push(`Asset criticality ${c}: +${CR[c]}`)}else r.push('Asset criticality unknown: +0 (fallback)');
+if(v.cvss!=null&&v.cvss>=9){p+=5;r.push(`CVSS ${v.cvss} is 9.0 or higher: +5`)}else if(v.cvss==null)r.push('CVSS not provided: severity used alone');
+if(v.confirmed){p+=10;r.push('Confirmed finding: +10')}else r.push('Not confirmed: +0');
+const a=age(v.found);if(a>30){p+=10;r.push(`Age ${a} days (over 30): +10`)}else if(a>14){p+=5;r.push(`Age ${a} days (over 14): +5`)}
+const od=today()>due(v)&&!closed(v);if(od){p+=15;r.push(`Overdue since ${due(v)}: +15`)}
+return{p,l:p>=70?'P1':p>=50?'P2':p>=30?'P3':'P4',r,od}}
+const closed=v=>['Resolved','Accepted Risk','False Positive'].includes(v.status);
+const bd=(c,t)=>`<span class="b ${c}">${esc(t??c)}</span>`;
+function log(v,x){v.hist.push({t:today(),u:'analyst',x});save()}
+function nav(){const n=notes().length;document.getElementById('nav').innerHTML=[['dash','Dashboard'],['find','Findings'],['imp','Import'],['assets','Assets'],['rep','Reports'],['note','Notifications'+(n?` (${n})`:'')]].map(([k,l])=>`<button data-a="go" data-v="${k}" class="${page==k?'on':''}">${l}</button>`).join('')}
+function notes(){const o=[];S.vulns.forEach(v=>{const p=prio(v);if(p.od)o.push(`Overdue: ${v.title} (due ${due(v)})`);else if(!closed(v)&&due(v)<=D(7))o.push(`Due within 7 days: ${v.title} (${due(v)})`);if(v.ver.some(x=>!x.ok)&&!closed(v))o.push(`Verification failed earlier: ${v.title}`);if(v.owner&&!closed(v)&&v.status=='Open')o.push(`Assigned to ${v.owner}: ${v.title}`)});S.imports.slice(-3).forEach(i=>{if(i.hi)o.push(`${i.hi} high-severity finding(s) imported from ${i.name}`)});return o}
+const bars=(o,tot)=>Object.entries(o).map(([k,n])=>`<div class="bar"><em>${esc(k)}</em><i style="width:${n/Math.max(tot,1)*60}%"></i><b>${n}</b></div>`).join('')||'<div class="empty">No data</div>';
+const cnt=(l,f)=>l.reduce((o,x)=>(o[f(x)]=(o[f(x)]||0)+1,o),{});
+const R={
+dash(){const V=S.vulns;if(!V.length)return`<h2>Dashboard</h2><div class="card empty">No findings yet. Import a scan file or seed data to begin.</div>`;
+const op=V.filter(v=>!closed(v)),rs=V.filter(v=>v.status=='Resolved'),od=V.filter(v=>prio(v).od),pct=Math.round(rs.length/V.length*100);
+return`<h2>Dashboard</h2><p class="sub">All figures are calculated from the stored records.</p><div class="grid">
+<div class="card kpi"><b>${V.length}</b><span>Tracked findings</span></div><div class="card kpi"><b>${op.length}</b><span>Open work</span></div><div class="card kpi"><b style="color:var(--crit)">${od.length}</b><span>Overdue</span></div><div class="card kpi"><b>${pct}%</b><span>Resolved (${rs.length} of ${V.length})</span></div></div>
+<div class="grid"><div class="card"><h3>By severity</h3>${bars(cnt(V,v=>v.sev),V.length)}</div><div class="card"><h3>By status</h3>${bars(cnt(V,v=>v.status),V.length)}</div>
+<div class="card"><h3>By asset and environment</h3>${bars(cnt(V,v=>AS(v.asset).name+' / '+AS(v.asset).env),V.length)}</div></div>
+<div class="grid"><div class="card"><h3>Recent imports</h3>${S.imports.slice(-4).reverse().map(i=>`<p>${esc(i.name)} on ${i.t}: ${i.n} saved, ${i.dup} duplicate, ${i.bad} invalid</p>`).join('')}</div>
+<div class="card"><h3>Priority rules and SLA</h3><p class="sub">Points: severity (Critical 40, High 30, Medium 20, Low 10), asset criticality (up to 20), CVSS 9+ (5), confirmed (10), age over 14/30 days (5/10), overdue (15). P1 70+, P2 50+, P3 30+, else P4.</p><p class="sub">Remediation targets: ${SEV.map(s=>s+' '+SLA[s]+'d').join(', ')}.</p></div></div>`},
+find(){let L=S.vulns.map(v=>({v,p:prio(v)})).filter(({v})=>(!flt.sev||v.sev==flt.sev)&&(!flt.st||v.status==flt.st)&&(v.title+v.cve+AS(v.asset).name+v.owner).toLowerCase().includes(flt.q.toLowerCase()));
+L.sort((a,b)=>flt.sort=='p'?b.p.p-a.p.p:flt.sort=='d'?due(a.v).localeCompare(due(b.v)):SEV.indexOf(a.v.sev)-SEV.indexOf(b.v.sev));
+return`<h2>Findings</h2><p class="sub">Sorted by remediation priority by default. Click a row for details.</p><div class="row2"><input id="q" placeholder="Search" value="${esc(flt.q)}"><select id="fs"><option value="">All severities</option>${SEV.map(s=>`<option ${flt.sev==s?'selected':''}>${s}</option>`).join('')}</select><select id="ft"><option value="">All statuses</option>${ST.map(s=>`<option ${flt.st==s?'selected':''}>${s}</option>`).join('')}</select><select id="so"><option value="p">Sort: priority</option><option value="s" ${flt.sort=='s'?'selected':''}>Sort: severity</option><option value="d" ${flt.sort=='d'?'selected':''}>Sort: due date</option></select><button class="g" data-a="nf">+ New finding</button></div>
+<div class="card wrap">${L.length?`<table><tr><th>Priority</th><th>Finding</th><th>Severity</th><th>Status</th><th>Asset</th><th>Owner</th><th>Due</th></tr>${L.map(({v,p})=>`<tr class="row" data-a="open" data-v="${v.id}"><td>${bd(p.l,p.l+' · '+p.p)}</td><td>${esc(v.title)}<br><small>${esc(v.cve||'CVE: Not provided')}</small></td><td>${bd(v.sev)}</td><td>${bd('s',v.status)}</td><td>${esc(AS(v.asset).name)}</td><td>${esc(v.owner||'Unassigned')}</td><td>${due(v)}${p.od?' <span class="warn">overdue</span>':''}</td></tr>`).join('')}</table>`:'<div class="empty">No findings match these filters.</div>'}</div>`},
+imp(){return`<h2>Import scan results</h2><p class="sub">Supported: VulnTrack JSON (array) and CSV with a header row. Nmap XML and Nessus CSV are not implemented in this version.</p>
+<div class="card"><div class="row2"><input type="file" id="f" accept=".json,.csv"><button class="g" data-a="sample">Load sample JSON</button></div><textarea id="t" placeholder='[{"title":"Open admin panel","asset":"Customer Portal (demo)","severity":"High","cve":"","cvss":"","port":"8080/tcp","recommendation":"Restrict access"}]'></textarea>
+<p class="sub">Required: title, asset (must match an existing asset name), severity. Optional: cve, cvss, port, description, recommendation.</p><button class="p" data-a="parse">Preview</button></div><div id="pv">${pv?PV():''}</div>
+<div class="card"><h3>Import history</h3>${S.imports.slice().reverse().map(i=>`<p>${i.t} · ${esc(i.name)} · ${i.n} saved, ${i.dup} duplicate, ${i.bad} invalid</p>`).join('')}</div>`},
+assets(){return`<h2>Asset inventory</h2><p class="sub">Adding an asset never triggers a scan.</p><div class="card"><div class="row2"><input id="an" placeholder="Name"><select id="at"><option>Web application</option><option>Server</option><option>Internal service</option></select><select id="ae"><option>Production</option><option>Staging</option><option>Development</option></select><select id="ac"><option>Critical</option><option>High</option><option selected>Medium</option><option>Low</option></select><input id="ao" placeholder="Owner"><button class="p" data-a="adda">Add asset</button></div><p id="ae2" class="warn"></p></div>
+<div class="card wrap"><table><tr><th>Name</th><th>Type</th><th>Environment</th><th>Criticality</th><th>Owner</th><th>Findings</th><th></th></tr>${S.assets.map(a=>`<tr><td>${esc(a.name)}</td><td>${esc(a.type)}</td><td>${esc(a.env)}</td><td>${esc(a.crit)}</td><td>${esc(a.owner)}</td><td>${S.vulns.filter(v=>v.asset==a.id).length}</td><td><button class="g" data-a="cyc" data-v="${a.id}">Change criticality</button></td></tr>`).join('')}</table></div>`},
+rep(){return`<h2>Reports</h2><p class="sub">Exports use the filters below. Cells starting with = + - @ are neutralised to block spreadsheet formula injection.</p><div class="card"><div class="row2"><select id="rs"><option value="">All severities</option>${SEV.map(s=>`<option>${s}</option>`).join('')}</select><select id="rt"><option value="">All statuses</option>${ST.map(s=>`<option>${s}</option>`).join('')}</select><select id="ra"><option value="">All assets</option>${S.assets.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select><button class="p" data-a="exp">Generate CSV</button></div><textarea id="out" readonly placeholder="CSV appears here. Select all and copy."></textarea></div>`},
+note(){const n=notes();return`<h2>Notifications</h2><p class="sub">In-app only. No email is sent.</p><div class="card">${n.length?'<ul>'+n.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>':'<div class="empty">Nothing needs attention.</div>'}</div>`}};
+function PV(){return`<div class="card wrap"><h3>Preview</h3><p>${pv.filter(r=>r.s=='New').length} new, ${pv.filter(r=>r.s=='Duplicate').length} duplicate, ${pv.filter(r=>r.s=='Invalid').length} invalid</p><table><tr><th>Result</th><th>Title</th><th>Asset</th><th>Severity</th><th>Note</th></tr>${pv.map(r=>`<tr><td>${bd(r.s)}</td><td>${esc(r.o.title)}</td><td>${esc(r.o.asset)}</td><td>${esc(r.o.severity)}</td><td>${esc(r.n||'')}</td></tr>`).join('')}</table><br><button class="p" data-a="commit">Save ${pv.filter(r=>r.s=='New').length} new finding(s)</button></div>`}
+function csv(t){const rows=[];let r=[],c='',q=false;for(let i=0;i<t.length;i++){const h=t[i];if(q){if(h=='"'&&t[i+1]=='"'){c+='"';i++}else if(h=='"')q=false;else c+=h}else if(h=='"')q=true;else if(h==','){r.push(c);c=''}else if(h=='\n'){r.push(c.replace(/\r$/,''));rows.push(r);r=[];c=''}else c+=h}if(c||r.length){r.push(c);rows.push(r)}const [H,...B]=rows.filter(x=>x.join('').trim());if(!H)throw Error('Empty CSV');const k=H.map(x=>x.trim().toLowerCase());return B.map(b=>Object.fromEntries(k.map((h,i)=>[h,(b[i]||'').trim()])))}
+function parse(txt,name){let rows;try{rows=name.endsWith('.csv')||!txt.trim().startsWith('[')?csv(txt):JSON.parse(txt);if(!Array.isArray(rows))throw Error('JSON must be an array')}catch(e){return alert('Cannot parse file: '+e.message+'. Supported formats: JSON array or CSV with header.')}
+if(rows.length>1000)return alert('Too many records (limit 1000).');
+const seen=new Set(S.vulns.map(v=>key(v)));pv=rows.map(o=>{o=o||{};const a=S.assets.find(x=>x.name.toLowerCase()==String(o.asset||'').toLowerCase()),sv=SEV.find(s=>s.toLowerCase()==String(o.severity||'').toLowerCase());let n='';
+if(!String(o.title||'').trim())n='Title missing';else if(!a)n='Unknown asset';else if(!sv)n='Severity must be one of '+SEV.join(', ');else if(o.cvss!==''&&o.cvss!=null&&(isNaN(o.cvss)||o.cvss<0||o.cvss>10))n='CVSS must be 0-10';
+if(n)return{s:'Invalid',o,n};const nv={id:'v'+Date.now()+Math.random().toString(36).slice(2,6),title:String(o.title).slice(0,200),asset:a.id,sev:sv,cvss:o.cvss===''||o.cvss==null?null:+o.cvss,cve:String(o.cve||'').trim(),port:o.port||'Unknown',status:'Open',owner:'',found:today(),due:'',confirmed:false,src:name,rec:o.recommendation||'Not provided',ev:o.description||'Not provided',hist:[{t:today(),u:'analyst',x:'Imported from '+name}],ver:[]};
+const k=key(nv);if(seen.has(k))return{s:'Duplicate',o,n:'Same asset, identifier and service already tracked'};seen.add(k);return{s:'New',o,nv}});pv.name=name;render()}
+const key=v=>[v.asset,(v.cve||v.title).toLowerCase(),v.port].join('|');
+function detail(id){const v=S.vulns.find(x=>x.id==id);if(!v)return;const p=prio(v),nx=NEXT[v.status]||[];
+document.getElementById('m').innerHTML=`<div class="modal" data-a="close"><div class="panel"><div class="row2"><h2 style="flex:1">${esc(v.title)}</h2><button class="g" data-a="close">Close</button></div>
+<p>${bd(v.sev)} ${bd('s',v.status)} ${bd(p.l,p.l+' priority · '+p.p+' pts')}</p>
+<div class="card"><h3>Why this priority</h3><ul>${p.r.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><p class="sub">Severity is unchanged by asset criticality.</p></div>
+<div class="card"><p><b>Asset:</b> ${esc(AS(v.asset).name)} (${esc(AS(v.asset).crit)})<br><b>CVE:</b> ${esc(v.cve||'Not provided')} · <b>CVSS:</b> ${v.cvss??'Not provided'} · <b>Service:</b> ${esc(v.port)}<br><b>Source:</b> ${esc(v.src)} · <b>Found:</b> ${v.found}<br><b>Evidence:</b> ${esc(v.ev)}<br><b>Recommendation:</b> ${esc(v.rec)}</p>
+<div class="row2"><input id="ow" placeholder="Owner" value="${esc(v.owner)}"><input type="date" id="du" value="${due(v)}"><button class="g" data-a="sv" data-v="${v.id}">Save owner and due date</button></div></div>
+<div class="card"><h3>Workflow</h3><div class="row2">${nx.map(s=>`<button class="p" data-a="mv" data-v="${v.id}|${s}">Move to ${s}</button>`).join('')}${['Open','Triaged','In Progress'].includes(v.status)?`<button class="g" data-a="fp" data-v="${v.id}">Mark false positive</button>`:''}${closed(v)?`<button class="g" data-a="mv" data-v="${v.id}|Open">Reopen</button>`:''}</div>
+${!closed(v)?`<div class="row2"><input id="ar" placeholder="Accepted-risk reason"><input type="date" id="ad"><button class="g" data-a="acc" data-v="${v.id}">Accept risk</button></div>`:''}
+${v.status=='Pending Verification'?`<h3>Record verification</h3><div class="row2"><input id="vm" placeholder="Method (e.g. re-test)"><input id="vn" placeholder="Evidence or notes" style="flex:1"></div><button class="p" data-a="ver" data-v="${v.id}|1">Pass: resolve</button> <button class="d" data-a="ver" data-v="${v.id}|0">Fail: reopen</button>`:'<p class="sub">Resolved is only reachable through a recorded verification pass.</p>'}<p id="er" class="warn"></p></div>
+<div class="card"><h3>Verification records</h3>${v.ver.map(x=>`<p>${x.t} · ${esc(x.by)} · ${esc(x.m)} · ${x.ok?'Pass':'Fail'}<br><small>${esc(x.n)}</small></p>`).join('')||'<p class="sub">None yet.</p>'}</div>
+<div class="card"><h3>Audit trail</h3><ul class="hist">${v.hist.slice().reverse().map(h=>`<li>${h.t} · ${esc(h.u)}: ${esc(h.x)}</li>`).join('')}</ul></div></div></div>`}
+const $=i=>document.getElementById(i),err=t=>{$('er')&&($('er').textContent=t)};
+const A={go(v){page=v;render()},close(){$('m').innerHTML=''},open:detail,
+nf(){const t=prompt('Finding title');if(!t||!S.assets.length)return;const sv=prompt('Severity: '+SEV.join(', '),'Medium'),s=SEV.find(x=>x.toLowerCase()==(sv||'').toLowerCase());if(!s)return alert('Invalid severity');S.vulns.push({id:'v'+Date.now(),title:t.slice(0,200),asset:S.assets[0].id,sev:s,cvss:null,cve:'',port:'Unknown',status:'Open',owner:'',found:today(),due:'',confirmed:false,src:'Manual',rec:'Not provided',ev:'Not provided',hist:[{t:today(),u:'analyst',x:'Created manually (asset defaults to the first one, change it by re-importing)'}],ver:[]});save();render()},
+sample(){$('t').value=JSON.stringify([{title:'Open admin panel',asset:'Customer Portal (demo)',severity:'High',cve:'',cvss:'',port:'8080/tcp',recommendation:'Restrict access by IP'},{title:'Outdated TLS configuration',asset:'Customer Portal (demo)',severity:'High',port:'443/tcp'},{title:'Unknown host issue',asset:'Nope',severity:'Low'},{title:'Weak cipher',asset:'Payments API (demo)',severity:'Urgent'}],null,1)},
+parse(){const f=$('f').files[0],t=$('t').value;if(f){if(f.size>1e6)return alert('File too large (1 MB limit).');const r=new FileReader();r.onload=()=>parse(r.result,f.name);r.readAsText(f)}else if(t.trim())parse(t,'pasted.json');else alert('Choose a file or paste data.')},
+commit(){const n=pv.filter(r=>r.s=='New');S.vulns.push(...n.map(r=>r.nv));S.imports.push({t:today(),name:pv.name,n:n.length,dup:pv.filter(r=>r.s=='Duplicate').length,bad:pv.filter(r=>r.s=='Invalid').length,hi:n.filter(r=>['Critical','High'].includes(r.nv.sev)).length});pv=null;save();page='find';render()},
+adda(){const n=$('an').value.trim();if(!n)return $('ae2').textContent='Name is required.';if(S.assets.some(a=>a.name.toLowerCase()==n.toLowerCase()))return $('ae2').textContent='Asset already exists.';S.assets.push({id:'a'+Date.now(),name:n.slice(0,100),type:$('at').value,env:$('ae').value,crit:$('ac').value,owner:$('ao').value.slice(0,60)||'Unassigned'});save();render()},
+cyc(id){const a=S.assets.find(x=>x.id==id),o=['Low','Medium','High','Critical'];a.crit=o[(o.indexOf(a.crit)+1)%4];save();render()},
+sv(id){const v=S.vulns.find(x=>x.id==id),o=$('ow').value.trim().slice(0,60),d=$('du').value;if(o!=v.owner)log(v,'Owner set to '+(o||'Unassigned'));if(d&&d!=due(v))log(v,'Due date set to '+d);v.owner=o;v.due=d;save();detail(id);render()},
+mv(x){const[id,s]=x.split('|'),v=S.vulns.find(y=>y.id==id);log(v,`Status ${v.status} to ${s}`);v.status=s;save();detail(id);render()},
+fp(id){const v=S.vulns.find(y=>y.id==id);log(v,'Marked false positive');v.status='False Positive';save();detail(id);render()},
+acc(id){const r=$('ar').value.trim(),d=$('ad').value;if(!r||!d)return err('Accepted risk needs a reason and a review date.');const v=S.vulns.find(y=>y.id==id);log(v,`Risk accepted: ${r} (review by ${d})`);v.status='Accepted Risk';save();detail(id);render()},
+ver(x){const[id,ok]=x.split('|'),m=$('vm').value.trim(),n=$('vn').value.trim();if(!m||!n)return err('Method and evidence or notes are required.');const v=S.vulns.find(y=>y.id==id);v.ver.push({t:today(),by:'analyst',m,n,ok:ok=='1'});v.status=ok=='1'?'Resolved':'In Progress';log(v,ok=='1'?'Verification passed: Resolved':'Verification failed: returned to In Progress');detail(id);render()},
+exp(){const s=$('rs').value,t=$('rt').value,a=$('ra').value,q=x=>{x=String(x??'');if(/^[=+\-@\t\r]/.test(x))x="'"+x;return'"'+x.replace(/"/g,'""')+'"'};const L=S.vulns.filter(v=>(!s||v.sev==s)&&(!t||v.status==t)&&(!a||v.asset==a));
+$('out').value=[['Generated '+today()],['Title','CVE','Asset','Severity','CVSS','Status','Priority','Owner','Recommendation','Due','Verification']].concat(L.map(v=>{const l=v.ver[v.ver.length-1];return[v.title,v.cve||'Not provided',AS(v.asset).name,v.sev,v.cvss??'Not provided',v.status,prio(v).l,v.owner||'Unassigned',v.rec,due(v),l?(l.ok?'Pass ':'Fail ')+l.t:'None']})).map(r=>r.map(q).join(',')).join('\n')}};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b&&A[b.dataset.a]){if(b.classList.contains('modal')&&e.target!==b)return;A[b.dataset.a](b.dataset.v)}});
+document.addEventListener('input',e=>{const i=e.target.id;if(i=='q'){flt.q=e.target.value;const p=e.target.selectionStart;render();const n=$('q');n.focus();n.setSelectionRange(p,p)}});
+document.addEventListener('change',e=>{const i=e.target.id,m={fs:'sev',ft:'st',so:'sort'};if(m[i]){flt[m[i]]=e.target.value;render()}});
+function render(){nav();$('v').innerHTML=R[page]()}render();
+</script></body></html>

@@ -1,0 +1,4 @@
+title,asset,severity,cve,cvss,port,description,recommendation
+Open admin panel,Customer Portal (demo),High,,,8080/tcp,Synthetic example,Restrict access by IP
+Weak cipher suite enabled,Payments API (demo),Medium,,5.9,443/tcp,Synthetic example,Disable legacy ciphers
+Outdated TLS configuration,Customer Portal (demo),High,,7.4,443/tcp,Duplicate of seed data,Upgrade TLS
